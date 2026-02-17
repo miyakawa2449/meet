@@ -11,9 +11,18 @@ MacBook Pro M4 Pro 48GB向けに最適化されています。
 
 ※ Whisperは稀に存在しない文言を生成することがあるので、議事録用途は「最終チェック必須」
 
+## 📘 Articles
+
+- 🧠 Design & Philosophy (Miyakawa Codes)
+  https://miyakawa.codes/blog/local-ai-meeting-minutes-30-minutes
+
+- ⚙️ Technical Guide (Qiita)
+  https://qiita.com/miyakawa2449@github/items/be7a1e5c2a16ac934f13
+
+
 ## M4 Pro 48GBでの性能
 
-あなたのMacBook Pro M4 Pro 48GBは以下の点で優れています：
+MacBook Pro M4 Pro 48GBは以下の点で優れています：
 
 - **メモリ**: 48GBあれば`large`モデルも余裕で動作
 - **Neural Engine**: M4 Proのニューラルエンジンで高速処理
