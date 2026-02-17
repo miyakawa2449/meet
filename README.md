@@ -8,6 +8,7 @@ MacBook Pro M4 Pro 48GB向けに最適化されています。
 1. MP4動画から音声を抽出
 2. OpenAI Whisperで文字起こし（ローカル実行、Apple Silicon最適化）
 3. LLMで要約して議事録を作成
+※ Whisperは稀に存在しない文言を生成することがあるので、議事録用途は「最終チェック必須」
 
 ## M4 Pro 48GBでの性能
 
