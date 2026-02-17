@@ -1,0 +1,11 @@
+.env
+output/
+temp/
+venv/
+*.mp4
+*.wav
+__pycache__/
+*.pyc
+.DS_Store
+
+transcribe_解説.md
