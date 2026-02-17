@@ -14,7 +14,7 @@ MacBook Pro M4 Pro 48GB向けに最適化されています。
 ## 📘 Articles
 
 - 🧠 Design & Philosophy (Miyakawa Codes)
-  https://miyakawa.codes/blog/local-ai-meeting-minutes-30-minutes
+  https://miyakawa.codes/blog/local-ai-meeting-minutes-10-minutes
 
 - ⚙️ Technical Guide (Qiita)
   https://qiita.com/miyakawa2449@github/items/be7a1e5c2a16ac934f13
