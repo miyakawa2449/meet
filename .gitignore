@@ -9,3 +9,4 @@ __pycache__/
 .DS_Store
 
 transcribe_解説.md
+whisper/
