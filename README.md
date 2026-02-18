@@ -1,12 +1,12 @@
-# 会議動画文字起こし・議事録作成ツール（M4 Pro最適化版）
+# 会議動画文字起こし・議事録作成ツール
 
 MP4動画から自動で文字起こしと議事録を作成するツールです。
-MacBook Pro M4 Pro 48GB向けに最適化されています。
+M4 Pro（MPS）とRTX（CUDA）の両方に対応しています。
 
 ## 機能
 
 1. MP4動画から音声を抽出
-2. OpenAI Whisperで文字起こし（ローカル実行、Apple Silicon最適化）
+2. Whisperで文字起こし（OpenAI Whisper / faster-whisper）
 3. LLMで要約して議事録を作成
 
 ※ Whisperは稀に存在しない文言を生成することがあるので、議事録用途は「最終チェック必須」
@@ -20,14 +20,14 @@ MacBook Pro M4 Pro 48GB向けに最適化されています。
   https://qiita.com/miyakawa2449@github/items/be7a1e5c2a16ac934f13
 
 
-## M4 Pro 48GBでの性能
+## どのスクリプトを使うか
 
-MacBook Pro M4 Pro 48GBは以下の点で優れています：
-
-- **メモリ**: 48GBあれば`large`モデルも余裕で動作
-- **Neural Engine**: M4 Proのニューラルエンジンで高速処理
-- **推奨モデル**: `medium`または`large`（高精度＋高速）
-- **処理時間目安**: 90分の動画を10-20分程度で処理可能（mediumモデル）
+- `transcribe_fw.py`  
+  Apple Siliconで fast whisper を試した実験版。MPS未対応のためCPUで実行。
+- `transcribe_cuda.py`  
+  RTXなどNVIDIA GPUで **OpenAI Whisper (PyTorch)** をCUDA利用する場合。
+- `transcribe_fw_cuda.py`  
+  RTXなどNVIDIA GPUで **faster-whisper (CTranslate2 CUDA)** を利用する場合。
 
 ## セットアップ
 
@@ -47,10 +47,10 @@ chmod +x setup.sh
 
 ```bash
 # 1. 仮想環境を作成
-python3 -m venv venv
+python3 -m venv whisper
 
 # 2. 仮想環境を有効化
-source venv/bin/activate
+source whisper/bin/activate
 
 # 3. ffmpegのインストール
 brew install ffmpeg
@@ -69,7 +69,7 @@ cp .env.example .env
 ### 仮想環境の有効化（毎回必要）
 
 ```bash
-source venv/bin/activate
+source whisper/bin/activate
 ```
 
 ### 基本的な使い方（mediumモデル推奨）
@@ -84,7 +84,7 @@ python transcribe.py meeting.mp4
 deactivate
 ```
 
-### 最高精度で処理（M4 Pro 48GBなら快適）
+### 最高精度で処理
 
 ```bash
 python transcribe.py meeting.mp4 --model large
@@ -102,15 +102,11 @@ python transcribe.py meeting.mp4 --model small
 python transcribe.py meeting.mp4 --no-summary
 ```
 
-## M4 Pro 48GBでの処理時間目安（90分動画）
+## 参考パフォーマンス（85分動画）
 
-| モデル | メモリ使用量 | 処理時間 | 精度 | 推奨度 |
-|--------|-------------|---------|------|--------|
-| small  | ~2GB        | 5-8分   | 良   | ○     |
-| medium | ~5GB        | 10-20分 | 優   | ★★★  |
-| large  | ~10GB       | 20-40分 | 最高 | ★★   |
-
-**推奨**: `medium`モデルが精度と速度のバランスが最適です。
+- faster-whisper CUDA: 2分50秒
+- OpenAI Whisper CUDA: 6分30秒前後
+- MPS（M4 Pro）: 10分40秒前後
 
 ## 出力ファイル
 
