@@ -3,3 +3,8 @@ ffmpeg-python
 openai
 python-dotenv
 torch
+
+# Phase1: faster-whisper（ASR差し替え）
+# transcribe_fw.py で使用
+faster-whisper>=1.0.0
+# ctranslate2>=4.0.0  # faster-whisper内部で利用（通常は自動インストールされる）

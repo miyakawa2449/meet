@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
-import whisper
+from faster_whisper import WhisperModel
 import ffmpeg
 from openai import OpenAI
 import config
@@ -27,26 +27,37 @@ def extract_audio(video_path, audio_path):
 
 
 def transcribe_audio(audio_path, model_name="medium"):
-    """Whisperで文字起こし（Apple Silicon最適化）"""
-    print(f"Whisperモデルをロード中: {model_name}")
-
-    # Apple Siliconの場合、自動的にMPSバックエンドを使用
-    import torch
-
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
-    print(f"使用デバイス: {device} (M4 Proのニューラルエンジンを活用)")
-
-    model = whisper.load_model(model_name, device=device)
-
-    print("文字起こし中... (M4 Pro 48GBなら90分の動画も高速処理されます)")
-    result = model.transcribe(
+    """faster-whisperで文字起こし（CPU最適化・速度検証版）"""
+    print(f"faster-whisper モデルをロード中: {model_name}")
+    
+    # ★検証はCPU固定（mps分岐を外す）
+    device = "cpu"
+    compute_type = "int8"
+    
+    model = WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=8,   # 8 / 10 / 12 など試す
+        num_workers=2    # 0 / 1 / 2 / 4 など試す
+    )
+    
+    print(f"最終設定 - デバイス: {device}, 計算タイプ: {compute_type}")
+    print("文字起こし中...")
+    
+    segments, info = model.transcribe(
         audio_path,
         language="ja",
-        verbose=True,
-        fp16=False,  # Apple Siliconではfp16=Falseが推奨
+        beam_size=1,        # ★最重要：まず1で測る
+        best_of=1,
+        vad_filter=False,   # ★まずOFFで測る（ONも後で比較）
+        temperature=0.0
     )
-
-    return result
+    
+    # ★速度検証時はprintしない（ログI/Oを減らす）
+    result_text_parts = [seg.text for seg in segments]
+    
+    return {"text": "".join(result_text_parts).strip()}
 
 
 def summarize_with_llm(transcript_text):
@@ -87,7 +98,7 @@ def main():
     start_time = time.time()
     
     parser = argparse.ArgumentParser(
-        description="MP4動画から議事録を作成（M4 Pro最適化版）"
+        description="MP4動画から議事録を作成（faster-whisper版 / M4 Pro最適化）"
     )
     parser.add_argument("video_file", help="入力するMP4ファイル")
     parser.add_argument(
