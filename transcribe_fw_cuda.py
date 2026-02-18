@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
+from typing import Optional
 from faster_whisper import WhisperModel
 import ffmpeg
 from openai import OpenAI
@@ -29,21 +30,10 @@ def extract_audio(video_path, audio_path):
 def transcribe_audio(audio_path, model_name="medium"):
     """faster-whisperで文字起こし（CUDA/フォールバック対応版）"""
     print(f"faster-whisper モデルをロード中: {model_name}")
-    
-    # 最初は CUDA を試す
-    device = "cuda"
-    compute_type = "int8"
-    
-    try:
-        model = WhisperModel(
-            model_name,
-            device=device,
-            compute_type=compute_type
-        )
-        print(f"最終設定 - デバイス: {device}, 計算タイプ: {compute_type}")
-        print("文字起こし中...")
-        
-        segments, info = model.transcribe(
+
+    def run_transcribe(model: WhisperModel, log_suffix: Optional[str] = None):
+        print(f"文字起こし中...{log_suffix or ''}")
+        segments, _ = model.transcribe(
             audio_path,
             language="ja",
             beam_size=1,
@@ -51,42 +41,46 @@ def transcribe_audio(audio_path, model_name="medium"):
             vad_filter=False,
             temperature=0.0
         )
-        
         result_text_parts = [seg.text for seg in segments]
         return {"text": "".join(result_text_parts).strip()}
-    
-    except RuntimeError as e:
-        if "cuBLAS" in str(e) or "CUDA" in str(e):
-            print(f"⚠️ CUDA エラーが発生したため、CPU にフォールバックします: {e}")
-            
-            # CPU で再実行
-            device = "cpu"
-            compute_type = "int8"
-            
-            model = WhisperModel(
-                model_name,
-                device=device,
-                compute_type=compute_type,
-                cpu_threads=8,
-                num_workers=2
-            )
-            
-            print(f"最終設定 - デバイス: {device}, 計算タイプ: {compute_type}")
-            print("文字起こし中... (CPU)")
-            
-            segments, info = model.transcribe(
-                audio_path,
-                language="ja",
-                beam_size=1,
-                best_of=1,
-                vad_filter=False,
-                temperature=0.0
-            )
-            
-            result_text_parts = [seg.text for seg in segments]
-            return {"text": "".join(result_text_parts).strip()}
-        else:
-            raise
+
+    # CUDA利用可否を判定（NVIDIAデバイスが無い環境での即失敗を回避）
+    cuda_available = False
+    try:
+        import ctranslate2
+        cuda_available = ctranslate2.get_cuda_device_count() > 0
+    except Exception as e:
+        print(f"⚠️ CUDA デバイス判定に失敗したため、CPU を使用します: {e}")
+
+    if cuda_available:
+        # GPUでは float16 を優先し、失敗時に int8_float16 にフォールバック
+        for compute_type in ("float16", "int8_float16"):
+            try:
+                model = WhisperModel(
+                    model_name,
+                    device="cuda",
+                    compute_type=compute_type
+                )
+                print(f"最終設定 - デバイス: cuda, 計算タイプ: {compute_type}")
+                return run_transcribe(model)
+            except Exception as e:
+                print(
+                    f"⚠️ CUDA 実行に失敗しました (compute_type={compute_type})。"
+                    f" 次の設定を試します: {e}"
+                )
+    else:
+        print("⚠️ CUDA デバイスが検出されなかったため、CPU にフォールバックします。")
+
+    # CPUにフォールバック
+    model = WhisperModel(
+        model_name,
+        device="cpu",
+        compute_type="int8",
+        cpu_threads=8,
+        num_workers=2
+    )
+    print("最終設定 - デバイス: cpu, 計算タイプ: int8")
+    return run_transcribe(model, " (CPU)")
 
 
 def summarize_with_llm(transcript_text):
@@ -156,29 +150,30 @@ def main():
     transcript_path = Path(config.OUTPUT_DIR) / f"{base_name}_transcript.txt"
     minutes_path = Path(config.OUTPUT_DIR) / f"{base_name}_minutes.txt"
 
-    # ステップ1: 音声抽出
-    extract_audio(str(video_path), str(audio_path))
+    try:
+        # ステップ1: 音声抽出
+        extract_audio(str(video_path), str(audio_path))
 
-    # ステップ2: 文字起こし
-    result = transcribe_audio(str(audio_path), args.model)
+        # ステップ2: 文字起こし
+        result = transcribe_audio(str(audio_path), args.model)
 
-    # 文字起こし結果を保存
-    with open(transcript_path, "w", encoding="utf-8") as f:
-        f.write(result["text"])
-    print(f"\n文字起こし完了: {transcript_path}")
+        # 文字起こし結果を保存
+        with open(transcript_path, "w", encoding="utf-8") as f:
+            f.write(result["text"])
+        print(f"\n文字起こし完了: {transcript_path}")
 
-    # ステップ3: 要約
-    if not args.no_summary:
-        minutes = summarize_with_llm(result["text"])
-        if minutes:
-            with open(minutes_path, "w", encoding="utf-8") as f:
-                f.write(minutes)
-            print(f"議事録作成完了: {minutes_path}")
-
-    # 一時ファイル削除
-    if audio_path.exists():
-        audio_path.unlink()
-        print(f"\n一時ファイルを削除: {audio_path}")
+        # ステップ3: 要約
+        if not args.no_summary:
+            minutes = summarize_with_llm(result["text"])
+            if minutes:
+                with open(minutes_path, "w", encoding="utf-8") as f:
+                    f.write(minutes)
+                print(f"議事録作成完了: {minutes_path}")
+    finally:
+        # 失敗時も一時ファイルを削除
+        if audio_path.exists():
+            audio_path.unlink()
+            print(f"\n一時ファイルを削除: {audio_path}")
 
     # 実行時間計測終了
     end_time = time.time()
