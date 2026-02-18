@@ -22,6 +22,8 @@ M4 Pro（MPS）とRTX（CUDA）の両方に対応しています。
 
 ## どのスクリプトを使うか
 
+- `transcribe.py`  
+  Apple SiliconでPyTorchを試したバージョン。Macで一番高いパフォーマンスを出します。MPSに対応しており、M4 Pro 48GBで90分の動画を10分台で議事録までまとめます。
 - `transcribe_fw.py`  
   Apple Siliconで fast whisper を試した実験版。MPS未対応のためCPUで実行。
 - `transcribe_cuda.py`  
@@ -102,7 +104,7 @@ python transcribe.py meeting.mp4 --model small
 python transcribe.py meeting.mp4 --no-summary
 ```
 
-## 参考パフォーマンス（85分動画）
+## 参考パフォーマンス（90分動画）
 
 - faster-whisper CUDA: 2分50秒
 - OpenAI Whisper CUDA: 6分30秒前後
