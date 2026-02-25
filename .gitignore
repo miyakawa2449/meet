@@ -8,6 +8,8 @@ __pycache__/
 *.pyc
 .DS_Store
 bench.json
+bench/*
+!bench/.gitkeep
 
 transcribe_解説.md
 whisper/
