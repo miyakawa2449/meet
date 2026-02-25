@@ -31,6 +31,84 @@ M4 Pro（MPS）とRTX（CUDA）の両方に対応しています。
 - `transcribe_fw_cuda.py`  
   RTXなどNVIDIA GPUで **faster-whisper (CTranslate2 CUDA)** を利用する場合。
 
+## bench_transcribe.py（統合ベンチ）
+
+`bench_transcribe.py` は、Whisper / faster-whisper を1本で切り替えて計測するベンチ用スクリプトです。
+
+- `--engine whisper | faster-whisper`
+- `--device auto | cpu | mps | cuda`
+- 計測項目: `extract / load / asr / summary / total`
+- ログ: `--bench-jsonl`（JSONL追記）, `--bench-md`（Markdown表追記）
+
+### 基本コマンド
+
+```bash
+python3 bench_transcribe.py meeting.mp4 \
+  --engine faster-whisper \
+  --device auto \
+  --no-summary \
+  --bench-jsonl bench/bench.jsonl \
+  --bench-md bench/bench.md
+```
+
+### 実行例（環境別）
+
+#### 1) Mac + Whisper（MPS）
+
+```bash
+python3 bench_transcribe.py meeting.mp4 \
+  --engine whisper \
+  --device mps \
+  --beam-size 1 \
+  --best-of 1 \
+  --no-summary \
+  --bench-jsonl bench/bench.jsonl \
+  --bench-md bench/bench.md
+```
+
+#### 2) Mac + faster-whisper（CPU / auto）
+
+```bash
+python3 bench_transcribe.py meeting.mp4 \
+  --engine faster-whisper \
+  --device auto \
+  --beam-size 1 \
+  --best-of 1 \
+  --no-summary \
+  --bench-jsonl bench/bench.jsonl \
+  --bench-md bench/bench.md
+```
+
+#### 3) Windows + Whisper（CUDA）
+
+PowerShell:
+
+```powershell
+python .\bench_transcribe.py .\meeting.mp4 `
+  --engine whisper `
+  --device cuda `
+  --beam-size 1 `
+  --best-of 1 `
+  --no-summary `
+  --bench-jsonl .\bench\bench.jsonl `
+  --bench-md .\bench\bench.md
+```
+
+#### 4) Windows + faster-whisper（CUDA）
+
+PowerShell:
+
+```powershell
+python .\bench_transcribe.py .\meeting.mp4 `
+  --engine faster-whisper `
+  --device cuda `
+  --beam-size 1 `
+  --best-of 1 `
+  --no-summary `
+  --bench-jsonl .\bench\bench.jsonl `
+  --bench-md .\bench\bench.md
+```
+
 ## セットアップ
 
 ### 簡単セットアップ（推奨）
