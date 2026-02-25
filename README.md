@@ -79,34 +79,30 @@ python3 bench_transcribe.py meeting.mp4 \
   --bench-md bench/bench.md
 ```
 
-#### 3) Windows + Whisper（CUDA）
+#### 3) WSL2 (Windows上のUbuntu) + Whisper（CUDA）
 
-PowerShell:
-
-```powershell
-python .\bench_transcribe.py .\meeting.mp4 `
-  --engine whisper `
-  --device cuda `
-  --beam-size 1 `
-  --best-of 1 `
-  --no-summary `
-  --bench-jsonl .\bench\bench.jsonl `
-  --bench-md .\bench\bench.md
+```bash
+python3 bench_transcribe.py meeting.mp4 \
+  --engine whisper \
+  --device cuda \
+  --beam-size 1 \
+  --best-of 1 \
+  --no-summary \
+  --bench-jsonl bench/bench.jsonl \
+  --bench-md bench/bench.md
 ```
 
-#### 4) Windows + faster-whisper（CUDA）
+#### 4) WSL2 (Windows上のUbuntu) + faster-whisper（CUDA）
 
-PowerShell:
-
-```powershell
-python .\bench_transcribe.py .\meeting.mp4 `
-  --engine faster-whisper `
-  --device cuda `
-  --beam-size 1 `
-  --best-of 1 `
-  --no-summary `
-  --bench-jsonl .\bench\bench.jsonl `
-  --bench-md .\bench\bench.md
+```bash
+python3 bench_transcribe.py meeting.mp4 \
+  --engine faster-whisper \
+  --device cuda \
+  --beam-size 1 \
+  --best-of 1 \
+  --no-summary \
+  --bench-jsonl bench/bench.jsonl \
+  --bench-md bench/bench.md
 ```
 
 ## セットアップ

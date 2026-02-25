@@ -203,17 +203,18 @@ def run_whisper(
             return False
         return device == "cuda"
 
-    def _run_with(device: str) -> tuple[str, float, float]:
+    def _run_with(device: str, fp16_override: bool | None = None) -> tuple[str, float, float, bool]:
         load_timer = Timer()
         model = whisper.load_model(model_name, device=device)
         t_load_inner = load_timer.elapsed()
 
+        fp16_effective = _resolve_fp16(device) if fp16_override is None else fp16_override
         kwargs: dict[str, Any] = {
             "language": language,
             "beam_size": beam_size,
             "best_of": best_of,
             "temperature": 0.0,
-            "fp16": _resolve_fp16(device),
+            "fp16": fp16_effective,
             "verbose": False,
         }
 
@@ -221,27 +222,37 @@ def run_whisper(
         result = model.transcribe(str(audio_path), **kwargs)
         t_asr_inner = asr_timer.elapsed()
         text_inner = (result.get("text") or "").strip()
-        return text_inner, t_load_inner, t_asr_inner
+        return text_inner, t_load_inner, t_asr_inner, fp16_effective
 
     tried_backend = backend
+    used_fp16 = _resolve_fp16(backend)
     try:
-        text, t_load, t_asr = _run_with(backend)
-    except ValueError as exc:
+        text, t_load, t_asr, used_fp16 = _run_with(backend)
+    except (ValueError, RuntimeError) as exc:
         # MPS環境でまれにNaN logitsが出るため、CPUへフォールバックして再実行する。
         if backend == "mps" and "nan" in str(exc).lower():
             print("[asr:whisper] mpsでNaN検出。cpuへフォールバックして再試行します。")
             tried_backend = "cpu"
-            text, t_load, t_asr = _run_with("cpu")
+            text, t_load, t_asr, used_fp16 = _run_with("cpu")
+        # CUDA + FP16 で cublasGemmEx が失敗する場合は FP32 で再試行する。
+        elif (
+            backend == "cuda"
+            and _resolve_fp16(backend)
+            and "CUBLAS_STATUS_INVALID_VALUE" in str(exc)
+        ):
+            print("[asr:whisper] CUDA FP16で失敗。FP32で再試行します。")
+            tried_backend = "cuda"
+            text, t_load, t_asr, used_fp16 = _run_with("cuda", fp16_override=False)
         else:
             raise
 
-    compute_type = "float16" if tried_backend == "cuda" else "float32"
+    compute_type = "float16" if (tried_backend == "cuda" and used_fp16) else "float32"
     extra = {
         "engine": "whisper",
         "backend": tried_backend,
         "requested_backend": backend,
         "whisper_fp16_mode": whisper_fp16_mode,
-        "whisper_fp16_effective": _resolve_fp16(tried_backend),
+        "whisper_fp16_effective": used_fp16,
     }
     return text, compute_type, t_load, t_asr, extra
 
