@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from hypothesis import settings
 
-from meeting_pipeline import (
+from src.meeting_pipeline import (
     ASRResult,
     ASRSegment,
     AudioInfo,

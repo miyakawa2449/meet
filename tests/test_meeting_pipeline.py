@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -11,8 +13,8 @@ from types import ModuleType, SimpleNamespace
 import pytest
 from hypothesis import given, strategies as st
 
-import meeting_pipeline as mp
-from meeting_pipeline import (
+from src import meeting_pipeline as mp
+from src.meeting_pipeline import (
     ASRResult,
     ASRSegment,
     AlignedSegment,
@@ -24,6 +26,9 @@ from meeting_pipeline import (
     SpeakerTurn,
     Timing,
 )
+from src.meeting_pipeline import audio as audio_module
+from src.meeting_pipeline import output as output_module
+from src.meeting_pipeline import pipeline as pipeline_module
 
 
 # ---------------------------------------------------------------------------
@@ -177,8 +182,8 @@ def test_audio_extraction_format_consistency(
             return SimpleNamespace(returncode=0, stdout="12.34\n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(mp.shutil, "which", lambda name: "/usr/bin/ffmpeg")
-    monkeypatch.setattr(mp.subprocess, "run", fake_run)
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     audio = mp.extract_audio(sample_input_file, str(tmp_path / "temp"), keep_audio=False)
 
@@ -191,7 +196,7 @@ def test_audio_extraction_format_consistency(
 def test_audio_extractor_unsupported_format(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     unsupported = tmp_path / "sample.txt"
     unsupported.write_text("x", encoding="utf-8")
-    monkeypatch.setattr(mp.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/ffmpeg")
 
     with pytest.raises(SystemExit) as exc_info:
         mp.extract_audio(str(unsupported), str(tmp_path), keep_audio=False)
@@ -206,10 +211,10 @@ def test_audio_extractor_keep_audio_flag(monkeypatch: pytest.MonkeyPatch, sample
         extracted.write_bytes(b"wav")
         return AudioInfo(path=str(extracted), sample_rate=16000, channels=1, duration_sec=1.0)
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
-    monkeypatch.setattr(mp, "extract_audio", fake_extract)
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_asr",
         lambda audio_path, device, config: ASRResult(
             segments=[],
@@ -223,9 +228,9 @@ def test_audio_extractor_keep_audio_flag(monkeypatch: pytest.MonkeyPatch, sample
             vad_filter=False,
         ),
     )
-    monkeypatch.setattr(mp, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
+    monkeypatch.setattr(pipeline_module, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "generate_meeting_json",
         lambda **kwargs: mp.MeetingJSON(
             schema_version="1.0",
@@ -254,7 +259,7 @@ def test_audio_extractor_keep_audio_flag(monkeypatch: pytest.MonkeyPatch, sample
             notes="",
         ),
     )
-    monkeypatch.setattr(mp, "save_meeting_json", lambda meeting, output_path: None)
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", lambda meeting, output_path: None)
 
     keep_cfg = PipelineConfig(**{**sample_config.__dict__, "format": "json", "keep_audio": True})
     mp.run_pipeline(keep_cfg)
@@ -287,14 +292,16 @@ def test_diarization_speaker_id_assignment(monkeypatch: pytest.MonkeyPatch) -> N
             self.end = end
 
     class FakeDiarization:
-        def itertracks(self, yield_label: bool = True):
-            yield (FakeTurn(0.0, 1.0), None, "A")
-            yield (FakeTurn(1.0, 2.0), None, "B")
-            yield (FakeTurn(2.0, 3.0), None, "A")
+        def __init__(self):
+            self.speaker_diarization = [
+                (FakeTurn(0.0, 1.0), "A"),
+                (FakeTurn(1.0, 2.0), "B"),
+                (FakeTurn(2.0, 3.0), "A"),
+            ]
 
     class FakePipeline:
         @classmethod
-        def from_pretrained(cls, model_name: str, use_auth_token: str):
+        def from_pretrained(cls, model_name: str, token: str):
             return cls()
 
         def to(self, device):
@@ -559,9 +566,9 @@ def test_iso8601_timestamp_format(
 def test_json_filename_generation(monkeypatch: pytest.MonkeyPatch, sample_config: PipelineConfig, tmp_path: Path) -> None:
     captured: dict[str, str] = {}
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "extract_audio",
         lambda input_file, temp_dir, keep_audio: AudioInfo(
             path=str(tmp_path / "temp" / "sample.wav"),
@@ -571,7 +578,7 @@ def test_json_filename_generation(monkeypatch: pytest.MonkeyPatch, sample_config
         ),
     )
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_asr",
         lambda audio_path, device, config: ASRResult(
             segments=[],
@@ -585,9 +592,9 @@ def test_json_filename_generation(monkeypatch: pytest.MonkeyPatch, sample_config
             vad_filter=False,
         ),
     )
-    monkeypatch.setattr(mp, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
+    monkeypatch.setattr(pipeline_module, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "generate_meeting_json",
         lambda **kwargs: mp.MeetingJSON(
             schema_version="1.0",
@@ -620,7 +627,7 @@ def test_json_filename_generation(monkeypatch: pytest.MonkeyPatch, sample_config
     def fake_save_json(meeting, output_path: str) -> None:
         captured["json_path"] = output_path
 
-    monkeypatch.setattr(mp, "save_meeting_json", fake_save_json)
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", fake_save_json)
 
     cfg = PipelineConfig(**{**sample_config.__dict__, "format": "json", "output_dir": str(tmp_path / "out")})
     mp.run_pipeline(cfg)
@@ -632,10 +639,36 @@ def test_save_meeting_json_validation_error(monkeypatch: pytest.MonkeyPatch, tmp
     class Bad:
         pass
 
-    monkeypatch.setattr(mp, "_dataclass_to_dict", lambda obj: {"x": Bad()})
+    monkeypatch.setattr(output_module, "_dataclass_to_dict", lambda obj: {"x": Bad()})
 
     with pytest.raises(SystemExit) as exc_info:
-        mp.save_meeting_json(mp.MeetingJSON, str(tmp_path / "x.json"))
+        dummy = mp.MeetingJSON(
+            schema_version="1.0",
+            created_at="2026-03-16T00:00:00+00:00",
+            title="",
+            input=mp.InputInfo(path="in.mp4", audio=AudioInfo(path="a.wav", sample_rate=16000, channels=1), duration_sec=0.0),
+            pipeline=mp.PipelineInfo(
+                device=DeviceInfo(requested="cpu", resolved="cpu"),
+                diarization=mp.DiarizationConfig(enabled=False, engine="", model="", hf_token_used=False),
+                asr=mp.ASRConfigInfo(
+                    engine="faster-whisper",
+                    model="tiny",
+                    device="cpu",
+                    compute_type="int8",
+                    language="ja",
+                    beam_size=1,
+                    best_of=1,
+                    vad_filter=False,
+                ),
+                align=mp.AlignConfig(method="max_overlap", unit="segment"),
+            ),
+            speakers=[mp.Speaker(id="UNKNOWN", label="Unknown")],
+            segments=[],
+            artifacts=mp.Artifacts(diarization_turns=[], asr_segments=[]),
+            timing=Timing(),
+            notes="",
+        )
+        mp.save_meeting_json(dummy, str(tmp_path / "x.json"))
     assert exc_info.value.code == 4
 
 
@@ -649,15 +682,15 @@ def test_pipeline_error_handling(monkeypatch: pytest.MonkeyPatch, sample_config:
     extracted.parent.mkdir(parents=True, exist_ok=True)
     extracted.write_bytes(b"wav")
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "extract_audio",
         lambda input_file, temp_dir, keep_audio: AudioInfo(
             path=str(extracted), sample_rate=16000, channels=1, duration_sec=1.0
         ),
     )
-    monkeypatch.setattr(mp, "run_asr", lambda audio_path, device, config: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(pipeline_module, "run_asr", lambda audio_path, device, config: (_ for _ in ()).throw(RuntimeError("boom")))
 
     with pytest.raises(SystemExit) as exc_info:
         mp.run_pipeline(PipelineConfig(**{**sample_config.__dict__, "format": "json"}))
@@ -701,11 +734,11 @@ def test_pipeline_resource_cleanup(monkeypatch: pytest.MonkeyPatch, sample_confi
             vad_filter=False,
         )
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
-    monkeypatch.setattr(mp, "extract_audio", fake_extract)
-    monkeypatch.setattr(mp, "run_diarization", fake_diar)
-    monkeypatch.setattr(mp, "run_asr", fake_asr)
-    monkeypatch.setattr(mp, "save_meeting_json", lambda meeting, output_path: None)
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
+    monkeypatch.setattr(pipeline_module, "run_diarization", fake_diar)
+    monkeypatch.setattr(pipeline_module, "run_asr", fake_asr)
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", lambda meeting, output_path: None)
 
     cfg = PipelineConfig(**{**sample_config.__dict__, "enable_diarization": True, "format": "json"})
     mp.run_pipeline(cfg)
@@ -878,10 +911,10 @@ def _run_pipeline_with_format(monkeypatch: pytest.MonkeyPatch, sample_config: Pi
         extracted.write_bytes(b"wav")
         return AudioInfo(path=str(extracted), sample_rate=16000, channels=1, duration_sec=1.0)
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
-    monkeypatch.setattr(mp, "extract_audio", fake_extract)
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_asr",
         lambda audio_path, device, config: ASRResult(
             segments=[],
@@ -895,9 +928,9 @@ def _run_pipeline_with_format(monkeypatch: pytest.MonkeyPatch, sample_config: Pi
             vad_filter=False,
         ),
     )
-    monkeypatch.setattr(mp, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
+    monkeypatch.setattr(pipeline_module, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "generate_meeting_json",
         lambda **kwargs: mp.MeetingJSON(
             schema_version="1.0",
@@ -926,8 +959,8 @@ def _run_pipeline_with_format(monkeypatch: pytest.MonkeyPatch, sample_config: Pi
             notes="",
         ),
     )
-    monkeypatch.setattr(mp, "save_meeting_json", lambda meeting, output_path: json_calls.__setitem__("n", json_calls["n"] + 1))
-    monkeypatch.setattr(mp, "save_transcript_markdown", lambda content, output_path: md_calls.__setitem__("n", md_calls["n"] + 1))
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", lambda meeting, output_path: json_calls.__setitem__("n", json_calls["n"] + 1))
+    monkeypatch.setattr(pipeline_module, "save_transcript_markdown", lambda content, output_path: md_calls.__setitem__("n", md_calls["n"] + 1))
 
     cfg = PipelineConfig(**{**sample_config.__dict__, "format": fmt, "output_dir": str(tmp_path / "out")})
     mp.run_pipeline(cfg)
@@ -1015,10 +1048,10 @@ def test_asr_load_sec_should_be_recorded_in_pipeline(
         extracted.write_bytes(b"wav")
         return AudioInfo(path=str(extracted), sample_rate=16000, channels=1, duration_sec=1.0)
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
-    monkeypatch.setattr(mp, "extract_audio", fake_extract)
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_asr",
         lambda audio_path, device, config: ASRResult(
             segments=[],
@@ -1033,7 +1066,7 @@ def test_asr_load_sec_should_be_recorded_in_pipeline(
             asr_load_sec=1.26,
         ),
     )
-    monkeypatch.setattr(mp, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
+    monkeypatch.setattr(pipeline_module, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
 
     def fake_generate(**kwargs):
         captured_timing["timing"] = kwargs["timing"]
@@ -1064,8 +1097,8 @@ def test_asr_load_sec_should_be_recorded_in_pipeline(
             notes="",
         )
 
-    monkeypatch.setattr(mp, "generate_meeting_json", fake_generate)
-    monkeypatch.setattr(mp, "save_meeting_json", lambda meeting, output_path: None)
+    monkeypatch.setattr(pipeline_module, "generate_meeting_json", fake_generate)
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", lambda meeting, output_path: None)
 
     cfg = PipelineConfig(**{**sample_config.__dict__, "format": "json"})
     mp.run_pipeline(cfg)
@@ -1258,10 +1291,10 @@ def test_word_level_alignment_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_pa
         temp_audio.write_bytes(b"wav")
         return AudioInfo(path=str(temp_audio), sample_rate=16000, channels=1, duration_sec=4.0)
 
-    monkeypatch.setattr(mp, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
-    monkeypatch.setattr(mp, "extract_audio", fake_extract)
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_diarization",
         lambda audio_path, device, model: DiarizationResult(
             turns=[
@@ -1275,7 +1308,7 @@ def test_word_level_alignment_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_pa
         ),
     )
     monkeypatch.setattr(
-        mp,
+        pipeline_module,
         "run_asr",
         lambda audio_path, device, config: ASRResult(
             segments=[
