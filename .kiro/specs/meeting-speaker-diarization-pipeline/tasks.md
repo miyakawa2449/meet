@@ -380,29 +380,37 @@
   - macOS環境での動作を確認（CPU/MPS両対応）
   - 全テストがパスすることを確認（56/56テスト合格）
 
-### Phase 5: CUDA環境での検証（オプション・将来実施）
+### Phase 5: CUDA環境での検証（オプション）
 
-- [ ]* 19. CUDA環境でのエンドツーエンド検証
-  - [ ]* 19.1 CUDA環境でのパイプライン実行テスト
-    - CUDA deviceでの実行を検証
-    - compute_type=float16の動作確認
+- [x]* 19. CUDA環境でのエンドツーエンド検証 **[Claude Code]**
+  - [x]* 19.1 CUDA環境でのパイプライン実行テスト
+    - CUDA deviceでの実行を検証（✅ RTX 5070, float16, 81セグメント, 2話者）
+    - compute_type=float16の動作確認（✅ 正常動作）
+    - Auto device選択でCUDAが正しく選択されることを確認（✅ 確認済み）
     - _Requirements: 2.1, 14.1_
   
-  - [ ]* 19.2 CUDA環境での出力一貫性検証
-    - macOS CPU/MPS環境との出力比較
-    - スキーマ構造の一貫性確認
+  - [x]* 19.2 CUDA環境での出力一貫性検証
+    - macOS CPU/MPS環境との出力比較（✅ スキーマ構造一致）
+    - スキーマ構造の一貫性確認（✅ Meeting JSON Schema v1.0準拠）
     - _Requirements: 14.4, 14.5_
   
-  - [ ]* 19.3 CUDA環境でのパフォーマンス測定
-    - 処理時間の記録
-    - メモリ使用量の確認
-    - ベンチマークデータの収集
+  - [x]* 19.3 CUDA環境でのパフォーマンス測定
+    - 処理時間の記録（✅ 5分動画: 24.5秒、macOS CPU比13.5倍高速）
+    - Diarization: 11.4秒（18.2倍高速）
+    - ASR: 10.8秒（11.1倍高速）
+    - ベンチマークデータの収集（✅ bench/phase5_cuda.jsonl）
     - _Requirements: 10.1, 10.2_
+  
+  - [x]* 19.4 CPU int8→float32フォールバック追加
+    - asr.pyにCPU int8失敗時のfloat32リトライロジックを追加
+    - カスタムビルド環境での制限事項をREADMEに記載
 
-- [ ]* 20. Checkpoint - Phase 5完了確認（オプション）
-  - CUDA環境での動作確認
-  - クロスプラットフォーム一貫性の最終確認
-  - 全テストがパスすることを確認
+- [x]* 20. Checkpoint - Phase 5完了確認（オプション） **[Claude Code + User]**
+  - ✅ CUDA環境での動作確認（Windows WSL2 + RTX 5070）
+  - ✅ クロスプラットフォーム一貫性の最終確認（macOS/Windows）
+  - ✅ 全56テストがパスすることを確認（macOS/Windows両環境）
+  - ✅ パフォーマンス測定完了（CUDA 13.5倍高速化）
+  - ✅ README更新（Phase 5完了、パフォーマンス比較表、既知の制限事項）
 
 ### 最終統合
 
