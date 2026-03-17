@@ -413,6 +413,80 @@ def test_asr_parameter_application_whisper(monkeypatch: pytest.MonkeyPatch, samp
     }
 
 
+def test_compute_type_selection_cuda() -> None:
+    """Test compute_type is float16 for CUDA."""
+    from src.meeting_pipeline.asr import _determine_compute_type
+
+    assert _determine_compute_type("cuda") == "float16"
+
+
+def test_compute_type_selection_mps() -> None:
+    """Test compute_type is float16 for MPS."""
+    from src.meeting_pipeline.asr import _determine_compute_type
+
+    assert _determine_compute_type("mps") == "float16"
+
+
+def test_compute_type_selection_cpu() -> None:
+    """Test compute_type is int8 for CPU."""
+    from src.meeting_pipeline.asr import _determine_compute_type
+
+    assert _determine_compute_type("cpu") == "int8"
+
+
+def test_faster_whisper_mps_fallback_to_cpu(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """Test that faster-whisper falls back to CPU when MPS is requested."""
+    import logging
+
+    from src.meeting_pipeline.asr import run_asr
+    from src.meeting_pipeline.models import PipelineConfig
+
+    caplog.set_level(logging.WARNING)
+
+    def mock_run_faster_whisper(audio_path: str, device: str, compute_type: str, config: PipelineConfig) -> ASRResult:
+        return ASRResult(
+            segments=[],
+            model=config.asr_model,
+            engine="faster-whisper",
+            device=device,
+            compute_type=compute_type,
+            language=config.language,
+            beam_size=config.beam_size,
+            best_of=config.best_of,
+            vad_filter=config.vad_filter,
+            asr_load_sec=0.0,
+        )
+
+    monkeypatch.setattr("src.meeting_pipeline.asr._run_faster_whisper", mock_run_faster_whisper)
+
+    config = PipelineConfig(
+        input_file="test.mp4",
+        device="mps",
+        enable_diarization=False,
+        diar_model="pyannote/speaker-diarization",
+        asr_engine="faster-whisper",
+        asr_model="tiny",
+        language="ja",
+        beam_size=1,
+        best_of=1,
+        vad_filter=False,
+        output_dir="output",
+        temp_dir="temp",
+        keep_audio=False,
+        format="both",
+        bench_jsonl=None,
+        run_id=None,
+        note=None,
+        align_unit="asr_segment",
+    )
+
+    result = run_asr("dummy_audio.wav", "mps", config)
+
+    assert result.device == "cpu"
+    assert result.compute_type == "int8"
+    assert "faster-whisper does not support MPS" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # Task 7.4, 7.5, 7.6 - Alignment tests
 # ---------------------------------------------------------------------------
@@ -896,6 +970,95 @@ def test_markdown_empty_text_skip(sample_config: PipelineConfig) -> None:
     assert "- [" not in md
 
 
+def test_meeting_json_schema_structure() -> None:
+    """Test Meeting JSON has all required fields regardless of device."""
+    from datetime import datetime
+
+    from src.meeting_pipeline.models import (
+        ASRConfigInfo,
+        AlignConfig,
+        Artifacts,
+        AudioInfo,
+        DeviceInfo,
+        DiarizationConfig,
+        InputInfo,
+        MeetingJSON,
+        PipelineInfo,
+        Speaker,
+        Timing,
+    )
+    from src.meeting_pipeline.output import _dataclass_to_dict
+
+    meeting = MeetingJSON(
+        schema_version="1.0",
+        created_at=datetime.now().isoformat(),
+        title="",
+        input=InputInfo(
+            path="test.mp4",
+            audio=AudioInfo(path="test.wav", sample_rate=16000, channels=1),
+            duration_sec=100.0,
+        ),
+        pipeline=PipelineInfo(
+            device=DeviceInfo(requested="auto", resolved="cpu"),
+            diarization=DiarizationConfig(
+                enabled=False,
+                engine="",
+                model="",
+                hf_token_used=False,
+            ),
+            asr=ASRConfigInfo(
+                engine="faster-whisper",
+                model="tiny",
+                device="cpu",
+                compute_type="int8",
+                language="ja",
+                beam_size=1,
+                best_of=1,
+                vad_filter=False,
+            ),
+            align=AlignConfig(method="max_overlap", unit="asr_segment"),
+        ),
+        speakers=[Speaker(id="UNKNOWN", label="Unknown")],
+        segments=[],
+        artifacts=Artifacts(diarization_turns=[], asr_segments=[]),
+        timing=Timing(
+            extract_sec=0.0,
+            diarization_sec=0.0,
+            asr_load_sec=0.0,
+            asr_sec=0.0,
+            align_sec=0.0,
+            summary_sec=0.0,
+            total_sec=0.0,
+        ),
+        notes="",
+    )
+
+    meeting_dict = _dataclass_to_dict(meeting)
+
+    required_fields = [
+        "schema_version",
+        "created_at",
+        "title",
+        "input",
+        "pipeline",
+        "speakers",
+        "segments",
+        "artifacts",
+        "timing",
+        "notes",
+    ]
+    for field in required_fields:
+        assert field in meeting_dict, f"Missing required field: {field}"
+
+    assert meeting_dict["schema_version"] == "1.0"
+    assert "device" in meeting_dict["pipeline"]
+    assert "diarization" in meeting_dict["pipeline"]
+    assert "asr" in meeting_dict["pipeline"]
+    assert "align" in meeting_dict["pipeline"]
+    assert "requested" in meeting_dict["pipeline"]["device"]
+    assert "resolved" in meeting_dict["pipeline"]["device"]
+
+
 # ---------------------------------------------------------------------------
 # Task 12.2 - Output format control tests
 # ---------------------------------------------------------------------------
@@ -1356,6 +1519,34 @@ def test_word_level_alignment_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert len(meeting["segments"]) == 2
     assert meeting["segments"][0]["speaker_id"] == "SPEAKER_00"
     assert meeting["segments"][1]["speaker_id"] == "SPEAKER_01"
+
+
+def test_device_resolution_macos_no_cuda(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test device resolution on macOS without CUDA."""
+    from src.meeting_pipeline.device import resolve_device
+
+    fake_torch = SimpleNamespace(
+        cuda=SimpleNamespace(is_available=lambda: False),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    device_info = resolve_device("auto")
+    assert device_info.resolved == "mps"
+
+
+def test_device_resolution_macos_no_mps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test device resolution on macOS without MPS."""
+    from src.meeting_pipeline.device import resolve_device
+
+    fake_torch = SimpleNamespace(
+        cuda=SimpleNamespace(is_available=lambda: False),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    device_info = resolve_device("auto")
+    assert device_info.resolved == "cpu"
 
 
 @pytest.mark.unit
