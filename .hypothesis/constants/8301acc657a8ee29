@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/models.py
+# hypothesis_version: 6.151.9
+
+[0.0, 'auto', 'both', 'faster-whisper', 'ja', 'medium', 'output', 'segment', 'temp']

@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/cli.py
+# hypothesis_version: 6.151.9
+
+['--align-unit', '--asr-engine', '--asr-model', '--beam-size', '--bench-jsonl', '--best-of', '--device', '--diar-model', '--enable-diarization', '--format', '--keep-audio', '--language', '--note', '--output-dir', '--run-id', '--temp-dir', '--vad-filter', 'auto', 'base', 'both', 'cpu', 'cuda', 'faster-whisper', 'input_file', 'ja', 'json', 'large', 'md', 'medium', 'mps', 'output', 'segment', 'small', 'store_true', 'temp', 'tiny', 'whisper', 'word']

@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/pipeline.py
+# hypothesis_version: 6.151.9
+
+['Stage: ASR', 'Stage: Alignment', 'Stage: Diarization', 'both', 'json', 'md', 'word']

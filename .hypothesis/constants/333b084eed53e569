@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/audio.py
+# hypothesis_version: 6.151.9
+
+[0.0, 16000, '-ac', '-ar', '-c:a', '-i', '-of', '-show_entries', '-v', '-y', '.avi', '.flac', '.m4a', '.mkv', '.mp3', '.mp4', '.wav', '1', '16000', 'csv=p=0', 'ffmpeg', 'ffprobe', 'format=duration', 'pcm_s16le', 'quiet']

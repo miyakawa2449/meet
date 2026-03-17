@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/diarization.py
+# hypothesis_version: 6.151.9
+
+['HF_TOKEN', 'cuda', 'mps', 'pyannote-audio']

@@ -88,8 +88,10 @@ def run_diarization(
 
     if device == "cuda" and _torch.cuda.is_available():
         _torch.cuda.empty_cache()
+    elif device == "mps" and _torch.backends.mps.is_available():
+        _torch.mps.empty_cache()
 
-    logger.info("Diarization model released")
+    logger.info("Diarization model released (device=%s)", device)
 
     return DiarizationResult(
         turns=turns,

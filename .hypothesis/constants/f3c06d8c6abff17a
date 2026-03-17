@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/output.py
+# hypothesis_version: 6.151.9
+
+[3600, '# 会議ログ（話者付き）', '## Transcript', '%Y%m%d_%H%M%S', '1.0', 'UNKNOWN', 'Unknown', '__dataclass_fields__', 'a', 'asr', 'device', 'diarization', 'end', 'id', 'input_file', 'max_overlap', 'models', 'note', 'requested', 'resolved', 'run_id', 'speaker_id', 'start', 'text', 'timestamp', 'timing', 'utf-8', 'w']

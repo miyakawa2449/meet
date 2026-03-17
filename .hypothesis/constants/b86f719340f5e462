@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/alignment.py
+# hypothesis_version: 6.151.9
+
+[0.0, 'SPEAKER_', 'UNKNOWN', 'Unknown', '_', 'end', 'max_overlap', 'overlap', 'speaker_id', 'start', 'text', 'turn_id', 'word', 'words']

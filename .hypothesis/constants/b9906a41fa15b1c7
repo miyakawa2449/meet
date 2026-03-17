@@ -1,0 +1,4 @@
+# file: /Users/tsuyoshi/development/Google_meet/src/meeting_pipeline/asr.py
+# hypothesis_version: 6.151.9
+
+['cpu', 'cuda', 'end', 'faster-whisper', 'float16', 'int8', 'mps', 'probability', 'segments', 'start', 'text', 'whisper', 'word', 'words']

@@ -375,28 +375,52 @@
 
 - [ ]* 18. Checkpoint - Phase 4完了確認（オプション）
   - Phase 4の全実装タスクが完了していることを確認
-  - Windows/macOS両環境での動作を確認
+  - macOS環境での動作を確認
+  - 全テストがパスすることを確認
+
+### Phase 5: CUDA環境での検証（オプション・将来実施）
+
+- [ ]* 19. CUDA環境でのエンドツーエンド検証
+  - [ ]* 19.1 CUDA環境でのパイプライン実行テスト
+    - CUDA deviceでの実行を検証
+    - compute_type=float16の動作確認
+    - _Requirements: 2.1, 14.1_
+  
+  - [ ]* 19.2 CUDA環境での出力一貫性検証
+    - macOS CPU/MPS環境との出力比較
+    - スキーマ構造の一貫性確認
+    - _Requirements: 14.4, 14.5_
+  
+  - [ ]* 19.3 CUDA環境でのパフォーマンス測定
+    - 処理時間の記録
+    - メモリ使用量の確認
+    - ベンチマークデータの収集
+    - _Requirements: 10.1, 10.2_
+
+- [ ]* 20. Checkpoint - Phase 5完了確認（オプション）
+  - CUDA環境での動作確認
+  - クロスプラットフォーム一貫性の最終確認
   - 全テストがパスすることを確認
 
 ### 最終統合
 
-- [ ] 19. 最終統合とドキュメント整備 **[Claude Code]**
-  - [ ] 19.1 README.mdを更新
+- [ ] 21. 最終統合とドキュメント整備 **[Claude Code]**
+  - [ ] 21.1 README.mdを更新
     - インストール手順（依存パッケージ、HF_TOKEN設定）
     - 使用例（基本的なコマンド例）
     - パラメータ一覧
     - トラブルシューティング
   
-  - [ ] 19.2 requirements.txtを更新
+  - [ ] 21.2 requirements.txtを更新
     - 全依存パッケージとバージョンを記載
     - pyannote-audio, faster-whisper, torch等
   
-  - [ ] 19.3 エンドツーエンド統合テストを実施 **[Codex]**
+  - [ ] 21.3 エンドツーエンド統合テストを実施 **[Codex]**
     - 複数の入力ファイル形式（mp4, wav, m4a）でテスト
     - 全出力フォーマット（json, md, both）でテスト
     - 全デバイスオプション（auto, cuda, mps, cpu）でテスト
 
-- [ ] 20. 最終Checkpoint **[User]**
+- [ ] 22. 最終Checkpoint **[User]**
   - 全必須タスク（Phase 1, Phase 2）が完了していることを確認
   - bench_transcribe.pyが変更されていないことを確認
   - meeting_pipeline.pyが正しく動作することを確認

@@ -11,7 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 def _determine_compute_type(device: str) -> str:
-    """Determine compute type based on device."""
+    """Determine optimal compute type based on device.
+
+    - CUDA: float16 (best GPU throughput; falls back to int8 on FP16 failure)
+    - MPS: float16 (used only by whisper engine; faster-whisper falls back to CPU)
+    - CPU: int8 (best speed/accuracy balance on CPU via quantization)
+    """
     if device in ("cuda", "mps"):
         return "float16"
     return "int8"
@@ -34,11 +39,25 @@ def _run_faster_whisper(
     )
 
     asr_load_start = time.time()
-    model = WhisperModel(
-        model_size_or_path=config.asr_model,
-        device=device,
-        compute_type=compute_type,
-    )
+    try:
+        model = WhisperModel(
+            model_size_or_path=config.asr_model,
+            device=device,
+            compute_type=compute_type,
+        )
+    except Exception as e:
+        if device == "cuda" and compute_type == "float16":
+            logger.warning(
+                "CUDA float16 failed (%s), retrying with int8", e
+            )
+            compute_type = "int8"
+            model = WhisperModel(
+                model_size_or_path=config.asr_model,
+                device=device,
+                compute_type=compute_type,
+            )
+        else:
+            raise
     asr_load_sec = time.time() - asr_load_start
 
     logger.info("Running faster-whisper transcription...")
@@ -157,10 +176,14 @@ def run_asr(
     # faster-whisper does not support MPS, fallback to CPU
     asr_device = device
     if config.asr_engine == "faster-whisper" and device == "mps":
-        logger.warning("faster-whisper does not support MPS, using CPU instead")
+        logger.warning(
+            "faster-whisper does not support MPS device; "
+            "falling back to CPU (compute_type will be int8)"
+        )
         asr_device = "cpu"
-    
+
     compute_type = _determine_compute_type(asr_device)
+    logger.info("ASR device=%s, compute_type=%s", asr_device, compute_type)
 
     if config.asr_engine == "faster-whisper":
         return _run_faster_whisper(audio_path, asr_device, compute_type, config)

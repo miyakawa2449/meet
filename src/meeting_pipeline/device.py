@@ -15,15 +15,25 @@ def resolve_device(requested: str) -> DeviceInfo:
     """
     import torch
 
+    cuda_available = torch.cuda.is_available()
+    mps_available = torch.backends.mps.is_available()
+    logger.info(
+        "Device availability: CUDA=%s, MPS=%s, platform=%s",
+        cuda_available,
+        mps_available,
+        sys.platform,
+    )
+
     if requested == "auto":
-        if torch.cuda.is_available():
+        if cuda_available:
             resolved = "cuda"
-        elif torch.backends.mps.is_available():
+        elif mps_available:
             resolved = "mps"
         else:
             resolved = "cpu"
+        logger.info("Auto device selection: %s", resolved)
     elif requested == "cuda":
-        if not torch.cuda.is_available():
+        if not cuda_available:
             print(
                 "Error: CUDA device requested but CUDA is not available",
                 file=sys.stderr,
@@ -31,7 +41,7 @@ def resolve_device(requested: str) -> DeviceInfo:
             sys.exit(2)
         resolved = "cuda"
     elif requested == "mps":
-        if not torch.backends.mps.is_available():
+        if not mps_available:
             print(
                 "Error: MPS device requested but MPS is not available",
                 file=sys.stderr,
