@@ -324,28 +324,28 @@
 
 ### Phase 3: 精度改善（オプション）
 
-- [ ]* 15. 単語/句単位アライン機能の実装
-  - [ ]* 15.1 faster-whisperのword_timestampsオプションを有効化
+- [x]* 15. 単語/句単位アライン機能の実装
+  - [x]* 15.1 faster-whisperのword_timestampsオプションを有効化
     - transcribe時にword_timestamps=Trueを指定
     - 単語レベルのタイムスタンプを取得
     - _Requirements: 該当なし（Phase 3拡張機能）_
   
-  - [ ]* 15.2 単語レベルアライン処理を実装
+  - [x]* 15.2 単語レベルアライン処理を実装
     - 各単語とSpeakerTurnの重複を計算
     - 単語単位でspeaker_idを割り当て
     - 同一話者の連続単語を1つのAlignedSegmentに統合
     - _Requirements: 該当なし（Phase 3拡張機能）_
   
-  - [ ]* 15.3 align.unitメタデータを更新
+  - [x]* 15.3 align.unitメタデータを更新
     - unit='word'または'phrase'を記録
     - _Requirements: 該当なし（Phase 3拡張機能）_
 
-- [ ]* 15.4 単語レベルアラインのユニットテストを作成
+- [x]* 15.4 単語レベルアラインのユニットテストを作成
   - 単語タイムスタンプ取得をテスト
   - 単語レベル重複計算をテスト
   - 連続単語統合ロジックをテスト
 
-- [ ]* 16. Checkpoint - Phase 3完了確認（オプション）
+- [x]* 16. Checkpoint - Phase 3完了確認（オプション）
   - Phase 3の全実装タスクが完了していることを確認
   - 単語レベルアラインの精度向上を検証
   - 全テストがパスすることを確認
