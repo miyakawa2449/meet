@@ -224,10 +224,16 @@ Meeting JSON Schema v1.0 に準拠した構造化データ：
 - 単語タイムスタンプの活用
 - 連続単語の統合
 
-### Phase 4: クロスプラットフォーム最適化 🚧 予定
+### Phase 4: クロスプラットフォーム最適化 ✅ 完了
 - macOS MPS 対応の検証
 - CPU 最適化
 - クロスプラットフォーム一貫性の確認
+
+### Phase 5: Windows CUDA 環境検証 ✅ 完了
+- Windows WSL2 + NVIDIA RTX 5070 (CUDA) での動作検証
+- CUDA / auto デバイスモードでの正常動作確認
+- パフォーマンス測定（5分動画: CUDA 24.5秒 vs macOS CPU 330秒、13.5倍高速）
+- 全56テスト合格
 
 ## テスト
 
@@ -242,17 +248,17 @@ pytest tests/ -k "alignment" -v
 pytest tests/ --cov=src/meeting_pipeline --cov-report=html
 ```
 
-現在のテスト状況: **49 passed** (0.15s)
+現在のテスト状況: **56 passed** (1.53s)
 
 ## パフォーマンス
 
-5分の動画（324秒）での実行時間例（CPU、tiny モデル）：
+5分の動画（324秒）での実行時間比較（medium モデル、diarization有効）：
 
-- Audio extraction: 0.3s
-- Diarization: 237.4s
-- ASR: 7.3s
-- Alignment: 0.0s
-- **Total: 245.5s**
+| Device | Platform | Diarization | ASR | Total |
+|--------|----------|-------------|-----|-------|
+| CPU | macOS | 207.9s | ~120s | ~330s |
+| MPS | macOS | 17.7s | ~120s (CPU fallback) | ~140s |
+| CUDA | WSL2/RTX 5070 | 11.4s | 10.8s | 24.5s |
 
 ## トラブルシューティング
 
@@ -279,6 +285,11 @@ Error: ffmpeg is required but not found in PATH
 WARNING: faster-whisper does not support MPS, using CPU instead
 ```
 → これは正常な動作です。faster-whisper は自動的に CPU にフォールバックします
+
+## 既知の制限事項
+
+- 本環境の CTranslate2 4.7.1 カスタムビルドは CUDA 専用であり、CPU SGEMM バックエンドを含みません。そのため、この環境では CPU での ASR 実行はサポートされません。
+- Phase 5 では CUDA および auto デバイスモードでの正常動作を確認済みです。
 
 ## ライセンス
 

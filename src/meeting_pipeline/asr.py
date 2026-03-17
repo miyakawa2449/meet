@@ -56,6 +56,16 @@ def _run_faster_whisper(
                 device=device,
                 compute_type=compute_type,
             )
+        elif device == "cpu" and compute_type == "int8":
+            logger.warning(
+                "CPU int8 failed (%s), retrying with float32", e
+            )
+            compute_type = "float32"
+            model = WhisperModel(
+                model_size_or_path=config.asr_model,
+                device=device,
+                compute_type=compute_type,
+            )
         else:
             raise
     asr_load_sec = time.time() - asr_load_start
