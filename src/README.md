@@ -347,6 +347,14 @@ WARNING: faster-whisper does not support MPS, using CPU instead
 - faster-whisper は MPS デバイスをサポートしていないため、macOS で MPS を指定した場合は自動的に CPU にフォールバックします（これは正常な動作です）
 - 一部のカスタムビルド環境（CUDA専用ビルド）では CPU ASR が制限される場合がありますが、標準的な環境では CPU/MPS/CUDA すべてで動作します
 
+## Author / 作者
+
+**Tsuyoshi Miyakawa（宮川 剛）** ([@miyakawa2449](https://github.com/miyakawa2449))
+
+- Website: [Miyakawa Codes](https://miyakawa.codes/)
+- GitHub: [@miyakawa2449](https://github.com/miyakawa2449)
+- X (Twitter): [@miyakawa2449](https://x.com/@miyakawa2449)
+
 ## ライセンス
 
 このプロジェクトは以下のオープンソースライブラリを使用しています：
