@@ -1,10 +1,11 @@
-openai-whisper
-ffmpeg-python
-openai
-python-dotenv
+# 新パイプライン（meeting_pipeline.py）の依存パッケージ
+
+# PyTorch（デバイス管理、モデル実行）
 torch
 
-# Phase1: faster-whisper（ASR差し替え）
-# transcribe_fw.py で使用
+# ASR（音声認識）
 faster-whisper>=1.0.0
-# ctranslate2>=4.0.0  # faster-whisper内部で利用（通常は自動インストールされる）
+openai-whisper
+
+# 話者分離
+pyannote-audio
