@@ -65,7 +65,8 @@ python meeting_pipeline.py temp/202602017_short_test.mp4 --enable-diarization --
 3. 動作確認の結果（実施した場合）
 4. 発見した問題（あれば）
 
-変更があれば git commit & push してください。
+変更があっても git commit/push はしないでください。
+変更内容を報告してください。ユーザーが確認後にコミットします。
 
 ## 詳細手順
 
