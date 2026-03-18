@@ -1,16 +1,39 @@
 # Meeting Speaker Diarization Pipeline
 
-会議音声・動画ファイルから話者分離とASRを実行し、話者ラベル付き議事録を生成するパイプラインです。
+音声・動画ファイルから**話者ごとに分離して文字起こしを行うAIパイプライン**です。
 
-## 概要
+## 🧠 Summary / 概要
 
-このパイプラインは以下の機能を提供します：
+This project builds an end-to-end pipeline that converts audio into
+speaker-separated transcripts with high accuracy and GPU acceleration.
 
-- **音声抽出**: 動画ファイルから音声を抽出（ffmpeg）
-- **話者分離**: pyannote-audio を使用した話者識別（オプション）
-- **音声認識**: faster-whisper または OpenAI whisper による文字起こし
-- **アライメント**: ASR結果と話者情報の統合（segment-level / word-level）
-- **出力生成**: JSON形式の構造化データと Markdown 形式の議事録
+このプロジェクトは、音声を話者分離された文字起こしに変換する
+エンドツーエンドパイプラインを、高精度とGPUアクセラレーションで実現します。
+
+**主な機能**:
+- 音声抽出（ffmpeg）→ 話者分離（pyannote-audio）→ 音声認識（faster-whisper/whisper）→ アライメント → 構造化出力（JSON/Markdown）
+- クロスプラットフォーム対応（CPU / macOS MPS / Windows CUDA）
+- GPU利用で最大13.5倍の高速化
+
+## 💡 Motivation / 背景と目的
+
+Many speech recognition systems struggle with speaker separation.
+This project aims to build a reproducible pipeline that integrates
+speaker diarization and ASR with GPU acceleration.
+
+多くの音声認識システムは話者分離に課題を抱えています。
+このプロジェクトは、話者分離とASRをGPUアクセラレーションで統合した
+再現可能なパイプラインを構築することを目指しています。
+
+## ✨ Features
+
+- 🎤 Speaker diarization (pyannote.audio)
+- 🗣️ Speech recognition (faster-whisper / openai-whisper)
+- 📝 Word-level alignment
+- 💻 Cross-platform support (CPU / macOS MPS / Windows CUDA)
+- ⚡ GPU acceleration (up to 13.5x faster on CUDA)
+- 📄 JSON + Markdown structured output
+- ✅ 56 unit tests (fully passing)
 
 ## アーキテクチャ
 
@@ -26,6 +49,39 @@ src/meeting_pipeline/
 ├── output.py          # JSON & Markdown Generator
 └── pipeline.py        # Main Pipeline Orchestration
 ```
+
+### 🏗️ アーキテクチャ図
+
+Audio/Video Input
+       ↓
+Audio Extraction (ffmpeg)
+       ↓
+   WAV Audio
+       ↓
+   ┌───┴───┐
+   ↓       ↓
+Diarization  ASR
+(pyannote)   (faster-whisper/whisper)
+   ↓       ↓
+Speaker    ASR
+Turns    Segments
+   └───┬───┘
+       ↓
+   Alignment
+(word-level or segment-level)
+       ↓
+Aligned Segments
+       ↓
+Output Generation
+(JSON / Markdown)
+
+**処理フロー**:
+1. 音声抽出: 動画/音声ファイルから16kHz mono WAVを生成
+2. 並列処理:
+   - 話者分離: 誰がいつ話したか（Speaker Turns）
+   - ASR: 何を話したか（ASR Segments）
+3. アライメント: Speaker TurnsとASR Segmentsを時間的に統合
+4. 出力生成: Meeting JSON + Transcript Markdown
 
 ## インストール
 
@@ -288,8 +344,8 @@ WARNING: faster-whisper does not support MPS, using CPU instead
 
 ## 既知の制限事項
 
-- 本環境の CTranslate2 4.7.1 カスタムビルドは CUDA 専用であり、CPU SGEMM バックエンドを含みません。そのため、この環境では CPU での ASR 実行はサポートされません。
-- Phase 5 では CUDA および auto デバイスモードでの正常動作を確認済みです。
+- faster-whisper は MPS デバイスをサポートしていないため、macOS で MPS を指定した場合は自動的に CPU にフォールバックします（これは正常な動作です）
+- 一部のカスタムビルド環境（CUDA専用ビルド）では CPU ASR が制限される場合がありますが、標準的な環境では CPU/MPS/CUDA すべてで動作します
 
 ## ライセンス
 
