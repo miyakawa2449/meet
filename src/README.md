@@ -51,7 +51,7 @@ src/meeting_pipeline/
 ```
 
 ### 🏗️ アーキテクチャ図
-
+```
 Audio/Video Input
        ↓
 Audio Extraction (ffmpeg)
@@ -74,6 +74,7 @@ Aligned Segments
        ↓
 Output Generation
 (JSON / Markdown)
+```
 
 **処理フロー**:
 1. 音声抽出: 動画/音声ファイルから16kHz mono WAVを生成
