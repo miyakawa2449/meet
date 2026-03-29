@@ -18,6 +18,7 @@ from .models import (
     DiarizationResult,
     InputInfo,
     MeetingJSON,
+    MeetingMinutes,
     PipelineConfig,
     PipelineInfo,
     Speaker,
@@ -227,6 +228,89 @@ def save_transcript_markdown(content: str, output_path: str) -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
     logger.info("Transcript Markdown saved: %s", output_path)
+
+
+def generate_minutes_markdown(minutes: MeetingMinutes) -> str:
+    """Markdown形式の議事録を生成する。"""
+    lines: List[str] = []
+
+    lines.append(f"# 議事録: {minutes.meeting_title or '（タイトルなし）'}")
+    lines.append("")
+    lines.append(f"**日付**: {minutes.meeting_date}")
+    lines.append(f"**時間**: {_format_timestamp(minutes.duration_sec)}")
+    lines.append(f"**参加者**: {', '.join(minutes.participants)}")
+    lines.append("")
+
+    lines.append("## 要約")
+    lines.append("")
+    lines.append(minutes.summary)
+    lines.append("")
+
+    lines.append("## 決定事項")
+    lines.append("")
+    if minutes.decisions:
+        for i, d in enumerate(minutes.decisions, 1):
+            ts = _format_timestamp(d.timestamp)
+            lines.append(f"{i}. [{ts}] {d.text} ({d.speaker}による)")
+    else:
+        lines.append("（決定事項なし）")
+    lines.append("")
+
+    lines.append("## アクションアイテム")
+    lines.append("")
+    if minutes.action_items:
+        lines.append("| タスク | 担当者 | 期限 | タイムスタンプ |")
+        lines.append("|--------|--------|------|----------------|")
+        for a in minutes.action_items:
+            ts = _format_timestamp(a.timestamp)
+            deadline = a.deadline or "未定"
+            lines.append(f"| {a.task} | {a.assignee} | {deadline} | {ts} |")
+    else:
+        lines.append("（アクションアイテムなし）")
+    lines.append("")
+
+    lines.append("## トピック")
+    lines.append("")
+    if minutes.topics:
+        for t in minutes.topics:
+            start_ts = _format_timestamp(t.start)
+            end_ts = _format_timestamp(t.end)
+            lines.append(f"### {t.title} [{start_ts} - {end_ts}]")
+            lines.append("")
+            lines.append(t.summary)
+            lines.append("")
+    else:
+        lines.append("（トピックなし）")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def save_minutes_markdown(content: str, output_path: str) -> None:
+    """Markdown議事録をファイルに保存する。"""
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    logger.info("Minutes Markdown saved: %s", output_path)
+
+
+def save_minutes_json(minutes: MeetingMinutes, output_path: str) -> None:
+    """議事録JSONをファイルに保存する（検証付き）。"""
+    minutes_dict = _dataclass_to_dict(minutes)
+
+    try:
+        json_str = json.dumps(minutes_dict, ensure_ascii=False, indent=2)
+        json.loads(json_str)
+    except (TypeError, ValueError) as e:
+        print(
+            f"Error: Failed to serialize MeetingMinutes JSON: {e}",
+            file=sys.stderr,
+        )
+        sys.exit(4)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(json_str)
+
+    logger.info("Minutes JSON saved: %s", output_path)
 
 
 def log_benchmark(

@@ -9,3 +9,7 @@ openai-whisper
 
 # 話者分離
 pyannote-audio
+
+# 議事録生成
+openai>=1.0.0
+python-dotenv>=1.0.0

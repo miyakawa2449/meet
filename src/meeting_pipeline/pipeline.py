@@ -16,14 +16,18 @@ from .diarization import run_diarization
 from .models import (
     AudioInfo,
     DiarizationResult,
+    MinutesConfig,
     PipelineConfig,
     Timing,
 )
 from .output import (
     generate_meeting_json,
+    generate_minutes_markdown,
     generate_transcript_markdown,
     log_benchmark,
     save_meeting_json,
+    save_minutes_json,
+    save_minutes_markdown,
     save_transcript_markdown,
 )
 
@@ -175,6 +179,52 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
             md_content = generate_transcript_markdown(meeting)
             save_transcript_markdown(md_content, md_path)
+
+        # --- Stage 8: 議事録生成（オプション） ---
+        if config.generate_minutes:
+            logger.info("ステージ: 議事録生成")
+            t0 = time.time()
+
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if not openai_api_key:
+                logger.error("環境にOPENAI_API_KEYが見つかりません")
+                print("エラー: OPENAI_API_KEYが設定されていません。議事録生成をスキップします。", file=sys.stderr)
+            else:
+                try:
+                    meeting_json_path = os.path.join(config.output_dir, f"{basename}_meeting.json")
+
+                    minutes_config = MinutesConfig(
+                        enabled=True,
+                        model=config.minutes_model,
+                        language=config.minutes_language if config.minutes_language != "auto" else config.language,
+                        temperature=0.3,
+                        max_tokens=4000,
+                    )
+
+                    from .minutes import generate_minutes
+
+                    minutes = generate_minutes(
+                        meeting_json_path,
+                        minutes_config,
+                        openai_api_key,
+                    )
+
+                    minutes_md_path = os.path.join(config.output_dir, f"{basename}_minutes.md")
+                    minutes_json_path = os.path.join(config.output_dir, f"{basename}_minutes.json")
+
+                    md_content = generate_minutes_markdown(minutes)
+                    save_minutes_markdown(md_content, minutes_md_path)
+                    save_minutes_json(minutes, minutes_json_path)
+
+                    timing.minutes_sec = round(time.time() - t0, 1)
+                    logger.info("議事録生成完了: %.1f秒", timing.minutes_sec)
+
+                except Exception as e:
+                    logger.error("議事録生成失敗: %s", e)
+                    print(f"エラー: 議事録生成失敗: {e}", file=sys.stderr)
+                    print("Meeting JSONと文字起こしは正常に保存されました。", file=sys.stderr)
+        else:
+            logger.info("議事録生成無効、スキップ")
 
         # --- Benchmark logging (optional) ---
         if config.bench_jsonl:

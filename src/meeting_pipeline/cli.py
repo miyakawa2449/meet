@@ -111,6 +111,22 @@ def parse_args(argv: Optional[List[str]] = None) -> PipelineConfig:
         choices=["segment", "word"],
         help="Alignment unit: segment (default) or word-level",
     )
+    parser.add_argument(
+        "--generate-minutes",
+        action="store_true",
+        help="OpenAI APIを使用して議事録を生成",
+    )
+    parser.add_argument(
+        "--minutes-model",
+        default="gpt-3.5-turbo",
+        choices=["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
+        help="議事録生成用のOpenAIモデル（デフォルト: gpt-3.5-turbo）",
+    )
+    parser.add_argument(
+        "--minutes-language",
+        default="auto",
+        help="議事録出力の言語（デフォルト: 入力から自動検出）",
+    )
 
     args = parser.parse_args(argv)
 
@@ -133,6 +149,9 @@ def parse_args(argv: Optional[List[str]] = None) -> PipelineConfig:
         run_id=args.run_id,
         note=args.note,
         align_unit=args.align_unit,
+        generate_minutes=args.generate_minutes,
+        minutes_model=args.minutes_model,
+        minutes_language=args.minutes_language,
     )
 
     validate_config(config)
@@ -168,3 +187,11 @@ def validate_config(config: PipelineConfig) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    # 議事録生成が有効な場合、APIキーをチェック
+    if config.generate_minutes:
+        if not os.getenv("OPENAI_API_KEY"):
+            print(
+                "警告: OPENAI_API_KEYが設定されていません。議事録生成はスキップされます。",
+                file=sys.stderr,
+            )

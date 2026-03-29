@@ -140,6 +140,7 @@ class Timing:
     asr_sec: float = 0.0
     align_sec: float = 0.0
     summary_sec: float = 0.0
+    minutes_sec: float = 0.0
     total_sec: float = 0.0
 
 
@@ -155,6 +156,64 @@ class MeetingJSON:
     artifacts: Artifacts
     timing: Timing
     notes: str
+
+
+@dataclass
+class MinutesConfig:
+    """議事録生成の設定"""
+
+    enabled: bool
+    model: str  # "gpt-4" または "gpt-3.5-turbo"
+    language: str  # "auto", "ja", "en", など
+    temperature: float = 0.3
+    max_tokens: int = 4000
+
+
+@dataclass
+class ActionItem:
+    """会議から抽出されたアクションアイテム"""
+
+    task: str
+    assignee: str  # 話者ラベルまたは名前
+    deadline: Optional[str] = None  # ISO日付または自然言語
+    timestamp: float = 0.0  # おおよそのタイムスタンプ（秒）
+
+
+@dataclass
+class Decision:
+    """会議中に行われた決定"""
+
+    text: str
+    speaker: str  # 話者ラベル
+    timestamp: float = 0.0  # おおよそのタイムスタンプ（秒）
+
+
+@dataclass
+class Topic:
+    """会議で議論されたトピック"""
+
+    title: str
+    summary: str
+    start: float = 0.0  # 開始タイムスタンプ（秒）
+    end: float = 0.0  # 終了タイムスタンプ（秒）
+
+
+@dataclass
+class MeetingMinutes:
+    """構造化された議事録"""
+
+    schema_version: str  # "1.0"
+    created_at: str  # ISO 8601タイムスタンプ
+    meeting_title: str
+    meeting_date: str  # ISO日付
+    duration_sec: float
+    participants: List[str]  # 話者ラベル
+    summary: str  # 会議全体の要約
+    decisions: List[Decision]
+    action_items: List[ActionItem]
+    topics: List[Topic]
+    model_info: MinutesConfig
+    generation_time_sec: float
 
 
 @dataclass
@@ -177,3 +236,6 @@ class PipelineConfig:
     run_id: Optional[str] = None
     note: Optional[str] = None
     align_unit: str = "segment"
+    generate_minutes: bool = False
+    minutes_model: str = "gpt-3.5-turbo"
+    minutes_language: str = "auto"

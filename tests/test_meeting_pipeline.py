@@ -26,9 +26,12 @@ from src.meeting_pipeline import (
     SpeakerTurn,
     Timing,
 )
+from src.meeting_pipeline import cli as cli_module
 from src.meeting_pipeline import audio as audio_module
+from src.meeting_pipeline import minutes as minutes_module
 from src.meeting_pipeline import output as output_module
 from src.meeting_pipeline import pipeline as pipeline_module
+from src.meeting_pipeline.models import ActionItem, Decision, MeetingMinutes, MinutesConfig, Topic
 
 
 # ---------------------------------------------------------------------------
@@ -1674,3 +1677,290 @@ def test_phase3_backward_compatibility() -> None:
     """
     cfg = PipelineConfig(input_file="dummy.mp4")
     assert cfg.align_unit == "segment"
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 tests - Minutes output, pipeline integration, CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sample_meeting_minutes() -> MeetingMinutes:
+    return MeetingMinutes(
+        schema_version="1.0",
+        created_at="2026-03-29T12:00:00+09:00",
+        meeting_title="週次定例",
+        meeting_date="2026-03-29",
+        duration_sec=3661.0,
+        participants=["Speaker 1", "Speaker 2"],
+        summary="会議全体の要約です。",
+        decisions=[Decision(text="仕様を確定する", speaker="Speaker 1", timestamp=75.0)],
+        action_items=[
+            ActionItem(
+                task="資料を更新する",
+                assignee="Speaker 2",
+                deadline="2026-04-01",
+                timestamp=120.0,
+            )
+        ],
+        topics=[Topic(title="進捗確認", summary="進捗の共有を行った。", start=0.0, end=180.0)],
+        model_info=MinutesConfig(
+            enabled=True,
+            model="gpt-4",
+            language="ja",
+            temperature=0.3,
+            max_tokens=4000,
+        ),
+        generation_time_sec=2.4,
+    )
+
+
+def test_generate_minutes_markdown_structure(sample_meeting_minutes: MeetingMinutes) -> None:
+    md = output_module.generate_minutes_markdown(sample_meeting_minutes)
+
+    assert md.startswith("# 議事録: 週次定例")
+    assert "## 要約" in md
+    assert "## 決定事項" in md
+    assert "## アクションアイテム" in md
+    assert "## トピック" in md
+
+
+def test_generate_minutes_markdown_summary_section(sample_meeting_minutes: MeetingMinutes) -> None:
+    md = output_module.generate_minutes_markdown(sample_meeting_minutes)
+
+    assert "## 要約" in md
+    assert "会議全体の要約です。" in md
+    assert "**時間**: 01:01:01" in md
+
+
+def test_generate_minutes_markdown_decisions_section(sample_meeting_minutes: MeetingMinutes) -> None:
+    md = output_module.generate_minutes_markdown(sample_meeting_minutes)
+
+    assert "1. [00:01:15] 仕様を確定する (Speaker 1による)" in md
+
+
+def test_generate_minutes_markdown_action_items_section(sample_meeting_minutes: MeetingMinutes) -> None:
+    md = output_module.generate_minutes_markdown(sample_meeting_minutes)
+
+    assert "| タスク | 担当者 | 期限 | タイムスタンプ |" in md
+    assert "| 資料を更新する | Speaker 2 | 2026-04-01 | 00:02:00 |" in md
+
+
+def test_save_minutes_json(sample_meeting_minutes: MeetingMinutes, tmp_path: Path) -> None:
+    output_path = tmp_path / "minutes.json"
+
+    output_module.save_minutes_json(sample_meeting_minutes, str(output_path))
+
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    assert saved["meeting_title"] == "週次定例"
+    assert saved["action_items"][0]["task"] == "資料を更新する"
+
+
+def test_save_minutes_json_schema_version_validation(
+    sample_meeting_minutes: MeetingMinutes,
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "minutes.json"
+
+    output_module.save_minutes_json(sample_meeting_minutes, str(output_path))
+
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    assert saved["schema_version"] == "1.0"
+
+
+def test_save_minutes_markdown(sample_meeting_minutes: MeetingMinutes, tmp_path: Path) -> None:
+    output_path = tmp_path / "minutes.md"
+    content = output_module.generate_minutes_markdown(sample_meeting_minutes)
+
+    output_module.save_minutes_markdown(content, str(output_path))
+
+    assert output_path.read_text(encoding="utf-8") == content
+
+
+def _patch_pipeline_for_minutes(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_config: PipelineConfig,
+    tmp_path: Path,
+) -> Path:
+    extracted = tmp_path / "temp" / "sample.wav"
+
+    def fake_extract(input_file: str, temp_dir: str, keep_audio: bool) -> AudioInfo:
+        extracted.parent.mkdir(parents=True, exist_ok=True)
+        extracted.write_bytes(b"wav")
+        return AudioInfo(path=str(extracted), sample_rate=16000, channels=1, duration_sec=30.0)
+
+    monkeypatch.setattr(pipeline_module, "resolve_device", lambda requested: DeviceInfo(requested=requested, resolved="cpu"))
+    monkeypatch.setattr(pipeline_module, "extract_audio", fake_extract)
+    monkeypatch.setattr(
+        pipeline_module,
+        "run_asr",
+        lambda audio_path, device, config: ASRResult(
+            segments=[ASRSegment(id="asr_000001", start=0.0, end=1.0, text="hello")],
+            model="medium",
+            engine="faster-whisper",
+            device=device,
+            compute_type="int8",
+            language="ja",
+            beam_size=1,
+            best_of=1,
+            vad_filter=False,
+            asr_load_sec=0.1,
+        ),
+    )
+    monkeypatch.setattr(pipeline_module, "align_segments", lambda asr_segments, speaker_turns, speakers: [])
+    monkeypatch.setattr(
+        pipeline_module,
+        "generate_meeting_json",
+        lambda **kwargs: mp.MeetingJSON(
+            schema_version="1.0",
+            created_at="2026-03-29T12:00:00+09:00",
+            title="定例会議",
+            input=mp.InputInfo(path=sample_config.input_file, audio=kwargs["audio_info"], duration_sec=30.0),
+            pipeline=mp.PipelineInfo(
+                device=kwargs["device_info"],
+                diarization=mp.DiarizationConfig(enabled=False, engine="", model="", hf_token_used=False),
+                asr=mp.ASRConfigInfo(
+                    engine="faster-whisper",
+                    model="medium",
+                    device="cpu",
+                    compute_type="int8",
+                    language="ja",
+                    beam_size=1,
+                    best_of=1,
+                    vad_filter=False,
+                ),
+                align=mp.AlignConfig(method="max_overlap", unit="segment"),
+            ),
+            speakers=[mp.Speaker(id="UNKNOWN", label="Unknown")],
+            segments=[],
+            artifacts=mp.Artifacts(diarization_turns=[], asr_segments=[]),
+            timing=kwargs["timing"],
+            notes="",
+        ),
+    )
+    return extracted
+
+
+def test_pipeline_runs_with_minutes_generation(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_config: PipelineConfig,
+    sample_meeting_minutes: MeetingMinutes,
+    tmp_path: Path,
+) -> None:
+    _patch_pipeline_for_minutes(monkeypatch, sample_config, tmp_path)
+    json_path = tmp_path / "out" / "sample_meeting.json"
+    saved: dict[str, object] = {}
+
+    def fake_save_meeting_json(meeting, output_path: str) -> None:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text("{}", encoding="utf-8")
+        saved["meeting_json_path"] = output_path
+
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", fake_save_meeting_json)
+    monkeypatch.setattr(pipeline_module, "save_transcript_markdown", lambda content, output_path: None)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(minutes_module, "generate_minutes", lambda path, config, api_key: sample_meeting_minutes)
+
+    def fake_save_minutes_markdown(content: str, output_path: str) -> None:
+        saved["minutes_md_path"] = output_path
+
+    def fake_save_minutes_json(minutes: MeetingMinutes, output_path: str) -> None:
+        saved["minutes_json_path"] = output_path
+
+    monkeypatch.setattr(pipeline_module, "save_minutes_markdown", fake_save_minutes_markdown)
+    monkeypatch.setattr(pipeline_module, "save_minutes_json", fake_save_minutes_json)
+
+    cfg = PipelineConfig(
+        **{
+            **sample_config.__dict__,
+            "format": "both",
+            "output_dir": str(tmp_path / "out"),
+            "generate_minutes": True,
+            "minutes_model": "gpt-4",
+            "minutes_language": "en",
+        }
+    )
+    mp.run_pipeline(cfg)
+
+    assert saved["meeting_json_path"] == str(json_path)
+    assert str(saved["minutes_md_path"]).endswith("sample_minutes.md")
+    assert str(saved["minutes_json_path"]).endswith("sample_minutes.json")
+
+
+def test_pipeline_continues_when_minutes_generation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_config: PipelineConfig,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_pipeline_for_minutes(monkeypatch, sample_config, tmp_path)
+    saved = {"meeting_json": 0}
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    def fake_save_meeting_json(meeting, output_path: str) -> None:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text("{}", encoding="utf-8")
+        saved["meeting_json"] += 1
+
+    monkeypatch.setattr(pipeline_module, "save_meeting_json", fake_save_meeting_json)
+    monkeypatch.setattr(pipeline_module, "save_transcript_markdown", lambda content, output_path: None)
+    monkeypatch.setattr(
+        minutes_module,
+        "generate_minutes",
+        lambda path, config, api_key: (_ for _ in ()).throw(RuntimeError("minutes failed")),
+    )
+    monkeypatch.setattr(pipeline_module, "save_minutes_markdown", lambda content, output_path: (_ for _ in ()).throw(AssertionError("should not save")))
+    monkeypatch.setattr(pipeline_module, "save_minutes_json", lambda minutes, output_path: (_ for _ in ()).throw(AssertionError("should not save")))
+
+    cfg = PipelineConfig(
+        **{
+            **sample_config.__dict__,
+            "format": "both",
+            "output_dir": str(tmp_path / "out"),
+            "generate_minutes": True,
+        }
+    )
+    mp.run_pipeline(cfg)
+
+    stderr = capsys.readouterr().err
+    assert saved["meeting_json"] == 1
+    assert "エラー: 議事録生成失敗: minutes failed" in stderr
+    assert "Meeting JSONと文字起こしは正常に保存されました。" in stderr
+
+
+def test_warning_when_openai_api_key_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_input_file: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    config = cli_module.parse_args([sample_input_file, "--generate-minutes"])
+
+    stderr = capsys.readouterr().err
+    assert config.generate_minutes is True
+    assert "警告: OPENAI_API_KEYが設定されていません。議事録生成はスキップされます。" in stderr
+
+
+def test_cli_generate_minutes_option(sample_input_file: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    args = mp.parse_args([sample_input_file, "--generate-minutes"])
+
+    assert args.generate_minutes is True
+
+
+def test_cli_minutes_model_option(sample_input_file: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    args = mp.parse_args([sample_input_file, "--minutes-model", "gpt-4"])
+
+    assert args.minutes_model == "gpt-4"
+
+
+def test_cli_minutes_language_option(sample_input_file: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    args = mp.parse_args([sample_input_file, "--minutes-language", "en"])
+
+    assert args.minutes_language == "en"
