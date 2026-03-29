@@ -12,6 +12,7 @@ __pycache__/
 bench.json
 bench/*
 !bench/.gitkeep
+blog/
 
 transcribe_解説.md
 whisper/
