@@ -10,6 +10,25 @@ from .models import DiarizationResult, SpeakerTurn
 
 logger = logging.getLogger(__name__)
 
+def _pyannote_audio_input(audio_path: str):
+    """
+    Return a pyannote-compatible audio input.
+    Always preload audio without torchaudio to avoid torchcodec runtime dependency.
+    """
+    try:
+        import soundfile as sf
+        import torch
+    except Exception as exc:
+        raise RuntimeError(
+            "soundfile is required for diarization audio loading. "
+            "Install it with: python -m pip install soundfile"
+        ) from exc
+
+    data, sample_rate = sf.read(audio_path, always_2d=True)
+    # soundfile returns (time, channels); pyannote expects (channels, time)
+    waveform = torch.from_numpy(data.T).to(torch.float32)
+    return {"waveform": waveform, "sample_rate": int(sample_rate)}
+
 
 def run_diarization(
     audio_path: str,
@@ -50,7 +69,7 @@ def run_diarization(
         pipeline.to(torch.device("mps"))
 
     logger.info("Running diarization...")
-    diarization = pipeline(audio_path)
+    diarization = pipeline(_pyannote_audio_input(audio_path))
 
     # Build speaker turns with sequential IDs
     turns: List[SpeakerTurn] = []
