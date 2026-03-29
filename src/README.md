@@ -11,9 +11,10 @@ speaker-separated transcripts with high accuracy and GPU acceleration.
 エンドツーエンドパイプラインを、高精度とGPUアクセラレーションで実現します。
 
 **主な機能**:
-- 音声抽出（ffmpeg）→ 話者分離（pyannote-audio）→ 音声認識（faster-whisper/whisper）→ アライメント → 構造化出力（JSON/Markdown）
+- 音声抽出（ffmpeg）→ 話者分離（pyannote-audio）→ 音声認識（faster-whisper/whisper）→ アライメント → 議事録生成（OpenAI API）→ 構造化出力（JSON/Markdown）
 - クロスプラットフォーム対応（CPU / macOS MPS / Windows CUDA）
 - GPU利用で最大13.5倍の高速化
+- 自動議事録生成（要約、決定事項、アクションアイテム、トピック分類）
 
 ## 💡 Motivation / 背景と目的
 
@@ -30,10 +31,11 @@ speaker diarization and ASR with GPU acceleration.
 - 🎤 Speaker diarization (pyannote.audio)
 - 🗣️ Speech recognition (faster-whisper / openai-whisper)
 - 📝 Word-level alignment
-- 💻 Cross-platform support (CPU / macOS MPS / Windows CUDA)
+- � Meeting minutes generation (OpenAI API)
+- �💻 Cross-platform support (CPU / macOS MPS / Windows CUDA)
 - ⚡ GPU acceleration (up to 13.5x faster on CUDA)
 - 📄 JSON + Markdown structured output
-- ✅ 56 unit tests (fully passing)
+- ✅ 87 unit tests (fully passing)
 
 ## アーキテクチャ
 
@@ -46,6 +48,7 @@ src/meeting_pipeline/
 ├── diarization.py     # Diarization Engine (pyannote-audio)
 ├── asr.py             # ASR Engine (faster-whisper/whisper)
 ├── alignment.py       # Alignment Module (segment/word-level)
+├── minutes.py         # Minutes Generator (OpenAI API)
 ├── output.py          # JSON & Markdown Generator
 └── pipeline.py        # Main Pipeline Orchestration
 ```
@@ -154,6 +157,12 @@ ASR:
                           アライメント単位 (default: segment)
                           word: 単語レベルの精密なアライメント
 
+議事録生成:
+  --generate-minutes      議事録生成を有効化（OpenAI API使用）
+  --minutes-model {gpt-3.5-turbo,gpt-4,gpt-4-turbo}
+                          OpenAIモデル (default: gpt-3.5-turbo)
+  --minutes-language LANG 議事録の言語 (default: auto)
+
 出力:
   --output-dir DIR        出力ディレクトリ (default: output)
   --format {json,md,both} 出力フォーマット (default: both)
@@ -197,6 +206,17 @@ python meeting_pipeline.py meeting.mp4 \
   --bench-jsonl bench/results.jsonl \
   --run-id exp001 \
   --note "baseline test"
+
+# 7. 議事録生成（OpenAI API使用）
+python meeting_pipeline.py meeting.mp4 \
+  --enable-diarization \
+  --generate-minutes
+
+# 8. 議事録生成（GPT-4使用、長時間会議向け）
+python meeting_pipeline.py meeting.mp4 \
+  --enable-diarization \
+  --generate-minutes \
+  --minutes-model gpt-4-turbo
 ```
 
 ## 出力フォーマット
@@ -260,6 +280,83 @@ Meeting JSON Schema v1.0 に準拠した構造化データ：
 - [00:00:09 - 00:00:10] はい、お願いします
 ```
 
+### 議事録出力（`--generate-minutes`使用時）
+
+#### Minutes JSON (`{basename}_minutes.json`)
+
+```json
+{
+  "schema_version": "1.0",
+  "created_at": "2026-03-29T16:11:29+09:00",
+  "meeting_title": "",
+  "meeting_date": "2026-03-29",
+  "duration_sec": 5024.5,
+  "participants": ["Speaker 1", "Speaker 2"],
+  "summary": "会議全体の要約（100-300語）",
+  "decisions": [
+    {
+      "text": "決定事項の内容",
+      "speaker": "Speaker 1",
+      "timestamp": 3600.0
+    }
+  ],
+  "action_items": [
+    {
+      "task": "タスクの説明",
+      "assignee": "Speaker 2",
+      "deadline": "2024-03-15",
+      "timestamp": 3900.0
+    }
+  ],
+  "topics": [
+    {
+      "title": "トピックタイトル",
+      "summary": "トピックの要約",
+      "start": 0.0,
+      "end": 1800.0
+    }
+  ],
+  "model_info": {
+    "enabled": true,
+    "model": "gpt-4-turbo",
+    "language": "ja",
+    "temperature": 0.3,
+    "max_tokens": 4000
+  },
+  "generation_time_sec": 38.8
+}
+```
+
+#### Minutes Markdown (`{basename}_minutes.md`)
+
+```markdown
+# 議事録: （タイトル）
+
+**日付**: 2026-03-29
+**時間**: 01:23:44
+**参加者**: Speaker 1, Speaker 2
+
+## 要約
+
+会議全体の簡潔な要約がここに表示されます。
+
+## 決定事項
+
+1. [01:00:00] 決定事項の内容 (Speaker 1による)
+
+## アクションアイテム
+
+| タスク | 担当者 | 期限 | タイムスタンプ |
+|--------|--------|------|----------------|
+| タスクの説明 | Speaker 2 | 2024-03-15 | 01:00:00 |
+
+## トピック
+
+### トピックタイトル [00:00:00 - 00:30:00]
+
+トピックの要約がここに表示されます。
+```
+
 ## 開発フェーズ
 
 ### Phase 1: 基本パイプライン ✅ 完了
@@ -292,6 +389,14 @@ Meeting JSON Schema v1.0 に準拠した構造化データ：
 - パフォーマンス測定（5分動画: CUDA 24.5秒 vs macOS CPU 330秒、13.5倍高速）
 - 全56テスト合格
 
+### Phase 6: 議事録生成機能 ✅ 完了
+- OpenAI API統合（GPT-3.5/GPT-4対応）
+- 要約、決定事項、アクションアイテム、トピック分類の自動生成
+- リトライロジック、エラーハンドリング実装
+- 31件の新規テスト追加（総テスト数87件）
+- クロスプラットフォーム検証（macOS/Windows）
+- 84分動画での実用検証完了
+
 ## テスト
 
 ```bash
@@ -305,7 +410,7 @@ pytest tests/ -k "alignment" -v
 pytest tests/ --cov=src/meeting_pipeline --cov-report=html
 ```
 
-現在のテスト状況: **56 passed** (1.53s)
+現在のテスト状況: **87 passed** (0.16s)
 
 ## パフォーマンス
 

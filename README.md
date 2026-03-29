@@ -11,6 +11,7 @@
 **`meeting_pipeline.py`** - 話者分離対応の最新版
 
 - ✅ **話者分離**: pyannote-audio による自動話者識別
+- ✅ **議事録生成**: OpenAI API による要約・決定事項・アクションアイテム抽出
 - ✅ **クロスプラットフォーム**: Mac（MPS/CPU）と Windows（CUDA）対応
 - ✅ **高精度**: 単語レベルアライメントによる精密な話者割り当て
 - ✅ **構造化出力**: JSON + Markdown 形式
@@ -152,7 +153,7 @@ pytest tests/ -v
 pytest tests/ --cov=src/meeting_pipeline --cov-report=html
 ```
 
-**現在のテスト状況**: 56/56 合格 ✅
+**現在のテスト状況**: 87/87 合格 ✅
 
 ### 開発フェーズ
 
@@ -161,6 +162,7 @@ pytest tests/ --cov=src/meeting_pipeline --cov-report=html
 - ✅ Phase 3: 単語レベルアライメント
 - ✅ Phase 4: macOS MPS/CPU 対応
 - ✅ Phase 5: Windows CUDA 環境検証
+- ✅ Phase 6: 議事録生成機能（OpenAI API統合）
 
 ---
 
